@@ -120,75 +120,33 @@ class AnyVariateAttention(nn.Module):
     def __init__(self, configs):
         super(AnyVariateAttention, self).__init__()
         self.d_model = configs.d_model
-        
-        # 增加特征投影维度，以更好地捕捉不同尺度的特征
-        self.W_Q = nn.Linear(configs.d_model, configs.d_model * 2)
-        self.W_K = nn.Linear(configs.d_model, configs.d_model * 2)
+
+        self.W_Q = nn.Linear(configs.d_model, configs.d_model)
+        self.W_K = nn.Linear(configs.d_model, configs.d_model)
         self.W_V = nn.Linear(configs.d_model, configs.d_model)
-        
-        # 可学习的旋转位置编码矩阵
-        self.R = nn.Parameter(torch.randn(configs.d_model * 2, configs.d_model * 2))
-        
-        # 变量注意力的可学习标量，增加初始化范围以适应数据尺度
-        self.u1 = nn.Parameter(torch.randn(1) * 0.02)  # 同一变量的偏置
-        self.u2 = nn.Parameter(torch.randn(1) * 0.02)  # 不同变量的偏置
-        
-        # 添加特征归一化
+
         self.layer_norm = nn.LayerNorm(configs.d_model)
-        
-        # 添加输出投影
         self.output_projection = nn.Linear(configs.d_model, configs.d_model)
-        
         self.dropout = nn.Dropout(configs.dropout)
-        
+
     def forward(self, x):
-        """
-        输入 x: [batch_size, seq_len, d_model]
-        """
-        # 应用层归一化
+        """x: [batch_size, seq_len, d_model]"""
         x = self.layer_norm(x)
-        
-        B, T, D = x.size()
-        
-        # 重塑输入以处理多变量
-        x = x.view(B, T, -1, D)  # [B, T, N, D]
-        N = x.size(2)
-        
-        # 计算查询、键和值向量
-        Q = self.W_Q(x)  # [B, T, N, D*2]
-        K = self.W_K(x)  # [B, T, N, D*2]
-        V = self.W_V(x)  # [B, T, N, D]
-        
-        # 应用旋转位置编码
-        K = torch.matmul(K, self.R)  # [B, T, N, D*2]
-        
-        # 计算注意力分数，使用scaled dot-product attention
-        scale = torch.sqrt(torch.FloatTensor([self.d_model * 2])).to(x.device)
-        attention_scores = torch.matmul(Q, K.transpose(-2, -1)) / scale  # [B, T, N, N]
-        
-        # 添加变量注意力偏置
-        variate_mask = torch.eye(N).to(x.device)  # [N, N]
-        variate_bias = self.u1 * variate_mask + self.u2 * (1 - variate_mask)  # [N, N]
-        
-        # 将偏置添加到注意力分数
-        attention_scores = attention_scores + variate_bias.unsqueeze(0).unsqueeze(0)
-        
-        # 应用softmax
-        attention_weights = F.softmax(attention_scores, dim=-1)  # [B, T, N, N]
+
+        Q = self.W_Q(x)
+        K = self.W_K(x)
+        V = self.W_V(x)
+
+        scale = math.sqrt(self.d_model)
+        attention_scores = torch.matmul(Q, K.transpose(-2, -1)) / scale
+        attention_weights = F.softmax(attention_scores, dim=-1)
         attention_weights = self.dropout(attention_weights)
-        
-        # 计算输出
-        output = torch.matmul(attention_weights, V)  # [B, T, N, D]
-        
-        # 重塑回原始维度
-        output = output.reshape(B, T, -1)  # [B, T, N*D]
-        
-        # 应用输出投影
+
+        output = torch.matmul(attention_weights, V)
         output = self.output_projection(output)
-        
-        # 添加残差连接
-        output = output + x.view(B, T, -1)
-        
+
+        output = output + x
+
         return output
 
 
@@ -349,8 +307,7 @@ class PastDecomposableMixing(nn.Module):
             _, T, _ = x.size()
             length_list.append(T)
             
-        # 应用Any-variate Attention
-        x_list = [self.any_variate_attention(x) for x in x_list]
+        x_list = [self.mtmem(self.any_variate_attention(x)) for x in x_list]
 
         # Decompose to obtain the season and trend
         season_list = []
@@ -534,6 +491,7 @@ class Model(nn.Module):
                 self.x_mark_dec = self.enc_embedding(None, x_mark_dec)
 
         x_enc, x_mark_enc = self.__multi_scale_process_inputs(x_enc, x_mark_enc)
+        B = x_enc[0].size(0)
 
         x_list = []
         x_mark_list = []
@@ -571,13 +529,13 @@ class Model(nn.Module):
             enc_out_list = self.pdm_blocks[i](enc_out_list)
 
         # Future Multipredictor Mixing as decoder for future
-        dec_out_list = self.future_multi_mixing(B, enc_out_list, x_list)
+        dec_out_list = self.future_multi_mixing(enc_out_list, x_list)
 
         dec_out = torch.stack(dec_out_list, dim=-1).sum(-1)
         dec_out = self.normalize_layers[0](dec_out, 'denorm')
         return dec_out
 
-    def future_multi_mixing(self, B, enc_out_list, x_list):
+    def future_multi_mixing(self, enc_out_list, x_list):
         dec_out_list = []
         if self.channel_independence == 1:
             x_list = x_list[0]
@@ -589,7 +547,7 @@ class Model(nn.Module):
                     dec_out = self.projection_layer(dec_out)
                 else:
                     dec_out = self.projection_layer(dec_out)
-                dec_out = dec_out.reshape(B, self.configs.c_out, self.pred_len).permute(0, 2, 1).contiguous()
+                dec_out = dec_out.reshape(-1, self.configs.c_out, self.pred_len).permute(0, 2, 1).contiguous()
                 dec_out_list.append(dec_out)
 
         else:

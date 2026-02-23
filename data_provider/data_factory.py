@@ -22,6 +22,8 @@ data_dict = {
 
 
 def data_provider(args, flag):
+    if args.data not in data_dict:
+        raise ValueError('Unsupported dataset: {}'.format(args.data))
     Data = data_dict[args.data]
     timeenc = 0 if args.embed != 'timeF' else 1
 
@@ -31,11 +33,7 @@ def data_provider(args, flag):
         batch_size = args.batch_size
         freq = args.freq
     elif flag == 'pred':
-        shuffle_flag = False
-        drop_last = False
-        batch_size = 1
-        freq = args.freq
-        Data = Dataset_Pred
+        raise NotImplementedError('Prediction mode requires Dataset_Pred, which is not implemented in this repository.')
     else:
         shuffle_flag = True
         drop_last = True

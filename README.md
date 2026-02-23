@@ -21,14 +21,14 @@ pandas==2.0.3
 reformer_pytorch==1.4.4
 scikit_learn==1.4.2
 scipy==1.15.2
-torch==2.6.0.dev20250103+cu126
+torch==2.6.0
 ```
 
 ### 安装
 
 ```bash
 git clone https://github.com/Jiaulo/TimeMixer-ME.git
-cd TimeMixer_ME
+cd TimeMixer-ME
 pip install -r requirements.txt
 ```
 
@@ -100,8 +100,7 @@ python run.py \
 | num_memories | 记忆单元数量 | 32 |
 | causal_levels | 因果层级数 | 4 |
 
-```
-🤝 贡献
+## 🤝 贡献
 
 欢迎提交问题和改进建议！如需贡献代码：
 
@@ -110,6 +109,6 @@ python run.py \
 3. 提交您的更改
 4. 创建Pull Request
 
-📄 许可证
+## 📄 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE)Time
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE)

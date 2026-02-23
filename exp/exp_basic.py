@@ -20,8 +20,12 @@ class Exp_Basic(object):
         if self.args.use_gpu:
             import platform
             if platform.system() == 'Darwin':
-                device = torch.device('mps')
-                print('Use MPS')
+                if torch.backends.mps.is_available():
+                    device = torch.device('mps')
+                    print('Use MPS')
+                    return device
+                device = torch.device('cpu')
+                print('MPS unavailable, fallback to CPU')
                 return device
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.args.gpu) if not self.args.use_multi_gpu else self.args.devices

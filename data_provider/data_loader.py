@@ -661,7 +661,7 @@ class Dataset_Solar(Dataset):
         seq_x_mark = torch.zeros((seq_x.shape[0], 1))
         seq_y_mark = torch.zeros((seq_y.shape[0], 1))
 
-        return seq_x, seq_y, seq_x_mark, seq_x_mark
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1

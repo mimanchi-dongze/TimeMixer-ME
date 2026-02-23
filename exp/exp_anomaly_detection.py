@@ -16,9 +16,6 @@ import time
 import warnings
 import numpy as np
 
-warnings.filterwarnings('ignore')
-
-
 class Exp_Anomaly_Detection(Exp_Basic):
     def __init__(self, args):
         super(Exp_Anomaly_Detection, self).__init__(args)
